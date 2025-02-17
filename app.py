@@ -1,46 +1,68 @@
 import streamlit as st
-# import tensorflow as tf
+import tensorflow as tf
 import numpy as np
 import pickle
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 
-# Load the trained model and mappings
-# @st.cache(allow_output_mutation=True)
+@st.cache_data  # remove allow_output_mutation=True
 def load_model_and_mappings():
-#     model = tf.keras.models.load_model("roman_urdu_poetry_model.h5")
-#     with open("char_to_idx.pkl", "rb") as f:
-#         char_to_idx = pickle.load(f)
-#     with open("idx_to_char.pkl", "rb") as f:
-#         idx_to_char = pickle.load(f)
-#     return model, char_to_idx, idx_to_char
-    return None, None, None
+    try:
+        model = tf.keras.models.load_model("roman_urdu_poetry_model.h5")
+        with open("char_to_idx.pkl", "rb") as f:
+            char_to_idx = pickle.load(f)
+        with open("idx_to_char.pkl", "rb") as f:
+            idx_to_char = pickle.load(f)
+        with open("tokenizer.pkl", "rb") as f:
+            tokenizer = pickle.load(f)
+        return model, char_to_idx, idx_to_char, tokenizer
+    except Exception as e:
+        st.error(f"Error loading model/mappings: {e}")
+        st.stop()
 
-model, char_to_idx, idx_to_char = load_model_and_mappings()
+model, char_to_idx, idx_to_char, tokenizer = load_model_and_mappings()
+max_sequence_length = 50
 
 def sample(preds, temperature=1.0):
     preds = np.asarray(preds).astype('float64')
     preds = np.log(preds + 1e-8) / temperature
     exp_preds = np.exp(preds)
     preds = exp_preds / np.sum(exp_preds)
-    probas = np.random.multinomial(1, preds, 1)
-    return np.argmax(probas)
+    return np.argmax(np.random.multinomial(1, preds, 1))
 
 def generate_text(model, seed_text, char_to_idx, idx_to_char, num_chars=200, temperature=1.0):
-    # maxlen = len(seed_text)
-    # generated = seed_text
-    # sentence = seed_text
-    # for i in range(num_chars):
-    #     x_pred = np.zeros((1, maxlen, len(char_to_idx)))
-    #     for t, char in enumerate(sentence):
-    #         if char in char_to_idx:
-    #             x_pred[0, t, char_to_idx[char]] = 1.
-    #     preds = model.predict(x_pred, verbose=0)[0]
-    #     next_index = sample(preds, temperature)
-    #     next_char = idx_to_char[next_index]
+    maxlen = len(seed_text)
+    generated = seed_text
+    sentence = seed_text
+    for _ in range(num_chars):
+        x_pred = np.zeros((1, maxlen, len(char_to_idx)))
+        for t, char in enumerate(sentence):
+            if char in char_to_idx:
+                x_pred[0, t, char_to_idx[char]] = 1
+        preds = model.predict(x_pred, verbose=0)[0]
+        next_char = idx_to_char[sample(preds, temperature)]
+        generated += next_char
+        sentence = sentence[1:] + next_char
+    return generated
 
-    #     generated += next_char
-    #     sentence = sentence[1:] + next_char
-    # return generated
-    return "Ishq ki shama jalti rahi,"
+def generate_poetry(model, seed_text, next_words=150, temperature=1.0):
+    for _ in range(next_words):
+        token_list = tokenizer.texts_to_sequences([seed_text])[0]
+        token_list = pad_sequences([token_list], maxlen=next_words-1, padding='pre')
+        preds = model.predict(token_list, verbose=0)[0]
+        preds = np.log(preds + 1e-10) / temperature
+        exp_preds = np.exp(preds)
+        probabilities = exp_preds / np.sum(exp_preds)
+        predicted_index = np.random.choice(len(probabilities), p=probabilities)
+        predicted_word = tokenizer.index_word.get(predicted_index, '')
+        seed_text += " " + predicted_word
+    return seed_text
+
+def format_poetry(text, num_words_per_line=7):
+    words = text.split()
+    lines = []
+    for i in range(0, len(words), num_words_per_line):
+        lines.append(" ".join(words[i:i+num_words_per_line]))
+    return "\n".join(lines)
 
 # Custom CSS styling
 st.markdown("""
@@ -122,16 +144,28 @@ with col2:
     st.markdown("<br>", unsafe_allow_html=True)  # Add some spacing
     if st.button("🎨 Generate Poetry", help="Click to generate your poetry"):
         if seed_text:
-            with st.spinner("✨ Creating poetry magic..."):
-                # Now num_chars and temperature are defined before this function call
-                generated_poetry = generate_text(
-                    model=model,
-                    seed_text=seed_text,
-                    char_to_idx=char_to_idx,
-                    idx_to_char=idx_to_char,
-                    num_chars=num_chars,
-                    temperature=temperature
-                )
+            try:
+                with st.spinner("✨ Creating poetry magic..."):
+                    # Use generate_poetry for word-level model or generate_text for char-level model
+                    if hasattr(model, 'predict_on_batch'):  # Check if it's a word-level model
+                        generated_poetry = generate_poetry(
+                            model=model,
+                            seed_text=seed_text,
+                            next_words=num_chars,
+                            temperature=temperature
+                        )
+                    else:  # Use character-level generation
+                        generated_poetry = generate_text(
+                            model=model,
+                            seed_text=seed_text,
+                            char_to_idx=char_to_idx,
+                            idx_to_char=idx_to_char,
+                            num_chars=num_chars,
+                            temperature=temperature
+                        )
+                    generated_poetry = format_poetry(generated_poetry)
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
         else:
             st.error("🎭 Please enter some seed text to begin.")
 
