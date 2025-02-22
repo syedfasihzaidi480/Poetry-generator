@@ -20,7 +20,7 @@ Requests (for API calls)
 Follow these steps to set up the AI Poetry Generator locally:
 
 ### 1️⃣ Clone the Repository
-git clone https://github.com/ali-aj/roman-poetry-generator
+git clone https://github.com/syedfasihzaidi480/Poetry-generator.git
 cd poetry-generator
 
 ### 2️⃣ Install Dependencies
