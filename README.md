@@ -1,4 +1,4 @@
-# ✨ AI-Powered Roman Poetry Generator
+# ✨ AI-Powered Roman Urdu Poetry Generator
 Generate beautiful, AI-crafted poetry with the power of machine learning. This Poetry Generator LSTM model and is built using Streamlit for a seamless, interactive experience.
 ![1](https://github.com/user-attachments/assets/143e2910-dbdb-46d7-b1a6-e04b8fafab7e)
 ![2](https://github.com/user-attachments/assets/bf13d27b-f199-4a8b-ba80-70917b5f832e)
